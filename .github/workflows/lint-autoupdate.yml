@@ -10,7 +10,7 @@ jobs:
   autoupdate:
     name: autoupdate
     runs-on: ubuntu-latest
-    if: github.repository == 'hgrecco/pint'
+    if: github.repository == 'hgrecco/flexcache'
     steps:
       - name: checkout
         uses: actions/checkout@v2

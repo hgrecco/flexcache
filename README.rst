@@ -138,6 +138,8 @@ but you can make your own. Take a look at the code!
 
 ----
 
+This project was started as a part of Pint_, the python units package.
+
 See AUTHORS_ for a list of the maintainers.
 
 To review an ordered list of notable changes for each version of a project,
@@ -145,3 +147,4 @@ see CHANGES_
 
 .. _`AUTHORS`: https://github.com/hgrecco/flexcache/blob/main/AUTHORS
 .. _`CHANGES`: https://github.com/hgrecco/flexcache/blob/main/CHANGES
+.. _`Pint`: https://github.com/hgrecco/pint
