@@ -88,6 +88,10 @@ invalidation is done. You can achieve this by subclassing the
 Here we create a custom Header class and use it to handle `pathlib.Path`
 objects. We provide a convenient set of Header classes.
 
+You can also avoid saving the header by setting the `_store_header` class
+attribute to `False`.
+
+
 **MinimumHeader**
 
 - source object limitations: None
@@ -138,3 +142,6 @@ See AUTHORS_ for a list of the maintainers.
 
 To review an ordered list of notable changes for each version of a project,
 see CHANGES_
+
+.. _`AUTHORS`: https://github.com/hgrecco/flexcache/blob/main/AUTHORS
+.. _`CHANGES`: https://github.com/hgrecco/flexcache/blob/main/CHANGES
