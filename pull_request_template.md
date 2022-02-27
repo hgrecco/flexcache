@@ -1,4 +1,0 @@
-- [ ] Closes # (insert issue number)
-- [ ] Executed ``pre-commit run --all-files`` with no errors
-- [ ] The change is fully covered by automated unit tests
-- [ ] Added an entry to the CHANGES file
