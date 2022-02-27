@@ -138,4 +138,3 @@ See AUTHORS_ for a list of the maintainers.
 
 To review an ordered list of notable changes for each version of a project,
 see CHANGES_
-
