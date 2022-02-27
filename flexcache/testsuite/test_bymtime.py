@@ -19,6 +19,8 @@ def test_new_cache_date(tmp_path):
     dc = DiskCacheByMTime(tmp_path)
     content = dc.load(dfile)[0]
 
+    time.sleep(FS_SLEEP)
+
     assert len(tuple(tmp_path.glob("*.pickle"))) == 0
     assert len(tuple(tmp_path.glob("*.json"))) == 0
 
@@ -59,6 +61,8 @@ def test_file_changed(tmp_path):
 
     assert len(tuple(tmp_path.glob("*.pickle"))) == 0
     assert len(tuple(tmp_path.glob("*.json"))) == 0
+
+    time.sleep(FS_SLEEP)
 
     # First, the cache should be missed
     assert content is None

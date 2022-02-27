@@ -22,6 +22,8 @@ def test_file_changed(tmp_path):
     assert len(tuple(tmp_path.glob("*.pickle"))) == 0
     assert len(tuple(tmp_path.glob("*.json"))) == 0
 
+    time.sleep(FS_SLEEP)
+
     # First, the cache should be missed
     assert content is None
     dc.save(pickle.dumps(dfile.read_bytes()), dfile)
@@ -53,6 +55,8 @@ def test_cache_miss(tmp_path):
 
     assert len(tuple(tmp_path.glob("*.pickle"))) == 0
     assert len(tuple(tmp_path.glob("*.json"))) == 0
+
+    time.sleep(FS_SLEEP)
 
     # First, the cache should be missed
     assert content is None
