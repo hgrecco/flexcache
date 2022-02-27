@@ -4,6 +4,8 @@ import time
 
 from flexcache.flexcache import DiskCacheByMTime
 
+# These sleep time is needed when run on GitHub Actions
+# If not given or too short, some mtime changes are not visible.
 FS_SLEEP = 0.010
 
 
