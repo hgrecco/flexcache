@@ -2,7 +2,7 @@ flexcache Changelog
 ===================
 
 
-0.2 (unreleased)
+0.2 (2022-02-28)
 ----------------
 
 - Split header into Header, Invalidate and Naming classes.
