@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 
+import abc
 import hashlib
 import json
 import pathlib
@@ -32,11 +33,16 @@ import platform
 import typing
 from dataclasses import asdict as dc_asdict
 from dataclasses import dataclass
-from typing import Any, Optional, Union
+from dataclasses import fields as dc_fields
+from typing import Any, Iterable
+
+#########
+# Header
+#########
 
 
 @dataclass(frozen=True)
-class MinimumHeader:
+class BaseHeader(abc.ABC):
     """Header with no information.
 
     The cached file is valid if exists.
@@ -46,53 +52,69 @@ class MinimumHeader:
     reader_id: str
 
     def for_cache_name(self) -> typing.Generator[bytes]:
-        yield self.reader_id.encode("utf-8")
+        for el in self._for_cache_name():
+            if isinstance(el, str):
+                yield el.encode("utf-8")
+            else:
+                yield el
 
+    def _for_cache_name(self) -> typing.Generator[bytes | str]:
+        yield self.reader_id
+
+    @abc.abstractmethod
     def is_valid(self, cache_path: pathlib.Path) -> bool:
-        return cache_path.exists()
+        ...
 
 
 @dataclass(frozen=True)
-class BasicPythonHeader(MinimumHeader):
+class BasicPythonHeader(BaseHeader):
     """Header with basic Python information."""
 
     system: str = platform.system()
     python_implementation: str = platform.python_implementation()
     python_version: str = platform.python_version()
 
-    def for_cache_name(self):
-        yield super().for_cache_name()
-        yield self.system.encode("utf-8")
-        yield self.python_implementation.encode("utf-8")
-        yield self.python_version.encode("utf-8")
+
+###############
+# Naming logic
+###############
 
 
-@dataclass(frozen=True)
-class NameByFileContentHeader:
+class NameByFields:
+    def _for_cache_name(self):
+        yield from super()._for_cache_name()
+        for field in dc_fields(self):
+            if field.name not in ("source", "reader_id"):
+                yield getattr(self, field.name)
+
+
+class NameByFileContent:
     """Given a file source object, the name is built from its content."""
 
     @property
     def source_path(self) -> pathlib.Path:
         return self.source
 
-    def for_cache_name(self):
-        yield from super().for_cache_name()
+    def _for_cache_name(self):
+        yield from super()._for_cache_name()
         yield self.source_path.read_bytes()
 
+    @classmethod
+    def from_string(cls, s: str, reader_id: str):
+        return cls(pathlib.Path(s), reader_id)
 
-@dataclass(frozen=True)
-class NameByObjHeader:
+
+class NameByObj:
     """Given a pickable source object, the name is built from its content."""
 
     pickle_protocol: int = pickle.HIGHEST_PROTOCOL
 
-    def for_cache_name(self):
-        yield from super().for_cache_name()
+    def _for_cache_name(self):
+        yield from super()._for_cache_name()
         yield pickle.dumps(self.source, protocol=self.pickle_protocol)
 
 
-@dataclass(frozen=True)
-class NameByPathHeader:
+class NameByPath:
     """Given a file source object, the name is built from its resolved path.
 
     The cached file is valid if exists and is newer than the source file.
@@ -102,19 +124,16 @@ class NameByPathHeader:
     def source_path(self) -> pathlib.Path:
         return self.source
 
-    def for_cache_name(self):
-        yield from super().for_cache_name()
+    def _for_cache_name(self):
+        yield from super()._for_cache_name()
         yield bytes(self.source_path.resolve())
 
-    def is_valid(self, cache_path: pathlib.Path):
-        return (
-            cache_path.exists()
-            and cache_path.stat().st_mtime > self.source_path.stat().st_mtime
-        )
+    @classmethod
+    def from_string(cls, s: str, reader_id: str):
+        return cls(pathlib.Path(s), reader_id)
 
 
-@dataclass(frozen=True)
-class NameByMultiplePathsHeader:
+class NameByMultiPaths:
     """Given multiple file source object, the name is built from their resolved path.
 
     The cached file is valid if exists and is newer than the newest source file.
@@ -124,10 +143,40 @@ class NameByMultiplePathsHeader:
     def source_paths(self) -> tuple[pathlib.Path]:
         return self.source
 
-    def for_cache_name(self):
-        yield from super().for_cache_name()
-        yield from (bytes(p.resolve()) for p in self.source_paths)
+    def _for_cache_name(self):
+        yield from super()._for_cache_name()
+        yield from sorted(bytes(p.resolve()) for p in self.source_paths)
 
+    @classmethod
+    def from_strings(cls, ss: Iterable[str], reader_id: str):
+        return cls(tuple(pathlib.Path(s) for s in ss), reader_id)
+
+
+class NameByHashIter:
+    def _for_cache_name(self):
+        yield from super()._for_cache_name()
+        yield from sorted(h for h in self.source)
+
+
+#####################
+# Invalidation logic
+#####################
+
+
+class InvalidateByExist:
+    def is_valid(self, cache_path: pathlib.Path) -> bool:
+        return cache_path.exists()
+
+
+class InvalidateByPathMTime:
+    def is_valid(self, cache_path: pathlib.Path):
+        return (
+            cache_path.exists()
+            and cache_path.stat().st_mtime > self.source_path.stat().st_mtime
+        )
+
+
+class InvalidateByMultiPathsMtime:
     @property
     def newest_date(self):
         return max((t.stat().st_mtime for t in self.source_paths), default=0)
@@ -146,7 +195,7 @@ class DiskCache:
     """
 
     # Maps classes
-    _header_classes: dict[type, MinimumHeader] = None
+    _header_classes: dict[type, BaseHeader] = None
 
     # Hasher object constructor (e.g. a member of hashlib)
     # must implement update(b: bytes) and hexdigest() methods
@@ -155,15 +204,15 @@ class DiskCache:
     # If True, for each cached file the header is also stored.
     _store_header: bool = True
 
-    def __init__(self, cache_folder: Union[str, pathlib.Path]):
+    def __init__(self, cache_folder: str | pathlib.Path):
         self.cache_folder = pathlib.Path(cache_folder)
         self.cache_folder.mkdir(parents=True, exist_ok=True)
         self._header_classes = self._header_classes or {}
 
-    def register_header_class(self, object_class: type, header_class: MinimumHeader):
+    def register_header_class(self, object_class: type, header_class: BaseHeader):
         self._header_classes[object_class] = header_class
 
-    def cache_stem_for(self, header: MinimumHeader) -> str:
+    def cache_stem_for(self, header: BaseHeader) -> str:
         """Generate a hash representing the location of a memoized file
         for a given filepath or object.
         """
@@ -172,20 +221,20 @@ class DiskCache:
             hd.update(value)
         return hd.hexdigest()
 
-    def cache_path_for(self, header: MinimumHeader) -> pathlib.Path:
+    def cache_path_for(self, header: BaseHeader) -> pathlib.Path:
         """Generate a Path representing the location of a memoized file
         for a given filepath or object.
         """
         h = self.cache_stem_for(header)
         return self.cache_folder.joinpath(h).with_suffix(".pickle")
 
-    def _get_header_class(self, source_object) -> MinimumHeader:
+    def _get_header_class(self, source_object) -> BaseHeader:
         for k, v in self._header_classes.items():
             if isinstance(source_object, k):
                 return v
         raise TypeError(f"Cannot find header class for {type(source_object)}")
 
-    def load(self, source_object, reader=None) -> tuple[Any, str]:
+    def load(self, source_object, reader=None, pass_hash=False) -> tuple[Any, str]:
         """Load and return the cached file if exists, and it's hash
         differ from the actual
         """
@@ -194,13 +243,18 @@ class DiskCache:
         header = header_class(source_object, reader_id)
 
         cache_path = self.cache_path_for(header)
+
         content = self.rawload(header, cache_path)
 
         if content:
             return content, cache_path.stem
         if reader is None:
             return None, cache_path.stem
-        content = reader(source_object)
+
+        if pass_hash:
+            content = reader(source_object, cache_path.stem)
+        else:
+            content = reader(source_object)
 
         self.rawsave(header, content, cache_path)
 
@@ -215,8 +269,8 @@ class DiskCache:
         return self.rawsave(header, obj, self.cache_path_for(header)).stem
 
     def rawload(
-        self, header: MinimumHeader, cache_path: pathlib.Path = None
-    ) -> Optional[Any]:
+        self, header: BaseHeader, cache_path: pathlib.Path = None
+    ) -> Any | None:
         if cache_path is None:
             cache_path = self.cache_path_for(header)
 
@@ -225,7 +279,7 @@ class DiskCache:
                 return pickle.load(fi)
 
     def rawsave(
-        self, header: MinimumHeader, obj, cache_path: pathlib.Path = None
+        self, header: BaseHeader, obj, cache_path: pathlib.Path = None
     ) -> pathlib.Path:
         """Save the object (in pickle format) to the cache folder
         using a unique name generated using `cache_path_for`
@@ -243,10 +297,8 @@ class DiskCache:
 
 class DiskCacheByHash(DiskCache):
     @dataclass(frozen=True)
-    class Header(NameByFileContentHeader, MinimumHeader):
-        @classmethod
-        def from_string(cls, s: str, reader_id: str):
-            return cls(pathlib.Path(s), reader_id)
+    class Header(InvalidateByExist, NameByFileContent, BaseHeader):
+        pass
 
     _header_classes = {
         pathlib.Path: Header,
@@ -256,10 +308,8 @@ class DiskCacheByHash(DiskCache):
 
 class DiskCacheByMTime(DiskCache):
     @dataclass(frozen=True)
-    class Header(NameByPathHeader, MinimumHeader):
-        @classmethod
-        def from_string(cls, s: str, reader_id: str):
-            return cls(pathlib.Path(s), reader_id)
+    class Header(InvalidateByPathMTime, NameByPath, BaseHeader):
+        pass
 
     _header_classes = {
         pathlib.Path: Header,
