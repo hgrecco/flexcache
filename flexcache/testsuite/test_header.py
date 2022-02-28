@@ -132,6 +132,9 @@ def test_name_by_paths(tmp_path):
     assert not hdr.is_valid(p0)
     assert hdr.is_valid(p3)
 
+    hdr = Hdr.from_strings((str(p1), str(p2)), "myreader")
+    assert hdr.source_paths == (p1, p2)
+
 
 def test_name_by_obj(tmp_path):
     @dataclass(frozen=True)
