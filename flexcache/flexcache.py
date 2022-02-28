@@ -239,7 +239,13 @@ class DiskCache:
         differ from the actual
         """
         header_class = self._get_header_class(source_object)
-        reader_id = reader.__name__ if reader is not None else ""
+
+        if isinstance(reader, str):
+            reader_id = reader
+            reader = None
+        else:
+            reader_id = getattr(reader, "__name__", "")
+
         header = header_class(source_object, reader_id)
 
         cache_path = self.cache_path_for(header)
@@ -260,12 +266,12 @@ class DiskCache:
 
         return content, cache_path.stem
 
-    def save(self, obj, source_object) -> str:
+    def save(self, obj, source_object, reader_id="") -> str:
         """Save the object (in pickle format) to the cache folder
         using a unique name generated using `cache_path_for`
         """
         header_class = self._get_header_class(source_object)
-        header = header_class(source_object, "")
+        header = header_class(source_object, reader_id)
         return self.rawsave(header, obj, self.cache_path_for(header)).stem
 
     def rawload(
