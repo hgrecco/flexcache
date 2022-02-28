@@ -6,3 +6,6 @@ omit = flexcache/testsuite/*
 exclude_lines =
     @abstractmethod
     @abc.abstractmethod
+
+    # Have to re-enable the standard pragma
+    pragma: no cover
