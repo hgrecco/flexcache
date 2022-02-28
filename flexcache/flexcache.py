@@ -72,6 +72,12 @@ class BaseHeader(abc.ABC):
             )
 
     def for_cache_name(self) -> typing.Generator[bytes]:
+        """The basename for the cache file is a hash hexdigest
+        built by feeding this collection of values.
+
+        A class can provide it's own set of values by rewriting
+        `_for_cache_name`.
+        """
         for el in self._for_cache_name():
             if isinstance(el, str):
                 yield el.encode("utf-8")
@@ -79,11 +85,18 @@ class BaseHeader(abc.ABC):
                 yield el
 
     def _for_cache_name(self) -> typing.Generator[bytes | str]:
+        """The basename for the cache file is a hash hexdigest
+        built by feeding this collection of values.
+
+        Change the behavior by writing your own.
+        """
         yield self.converter_id
 
     @abc.abstractmethod
     def is_valid(self, cache_path: pathlib.Path) -> bool:
-        ...
+        """Return True if the cache_path is an cached version
+        of the source_object represented by this header.
+        """
 
 
 @dataclass(frozen=True)
