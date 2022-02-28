@@ -2,7 +2,9 @@
     flexcache
     ~~~~~~~~~
 
-    Classes for persistent caching and invalidating source objects.
+    Classes for persistent caching and invalidating cached objects,
+    which are built from a source object and a (potentially expensive)
+    conversion function.
 
     :copyright: 2022 by flexcache Authors, see AUTHORS for more details.
     :license: BSD, see LICENSE for more details.

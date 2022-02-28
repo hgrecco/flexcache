@@ -2,21 +2,26 @@
     flexcache.flexcache
     ~~~~~~~~~~~~~~~~~~~
 
-    Class for persistent caching and invalidating source objects.
+    Classes for persistent caching and invalidating cached objects,
+    which are built from a source object and a (potentially expensive)
+    conversion function.
 
     Header
     ------
     Contains summary information about the source object that will
     be saved together with the cached file.
 
-    Members are used:
-    - to build the cached filename (see `for_cache_name`)
-    - decide whether a given cache file is valid. (see `is_valid`)
-    Override these functions to change the logic.
+    It's capabilities are divided in three groups:
+    - The Header itself which contains the information that will
+      be saved alongside the cached file
+    - The Naming logic which indicates how the cached filename is
+      built.
+    - The Invalidation logic which indicates whether a cached file
+      is valid (i.e. truthful to the actual source file).
 
     DiskCache
     ---------
-    Saves and loads cached versions of a source object.
+    Saves and loads to the cache a transformed versions of a source object.
 
     :copyright: 2022 by flexcache Authors, see AUTHORS for more details.
     :license: BSD, see LICENSE for more details.
@@ -43,13 +48,28 @@ from typing import Any, Iterable
 
 @dataclass(frozen=True)
 class BaseHeader(abc.ABC):
-    """Header with no information.
+    """Header with no information except the converter_id
 
-    The cached file is valid if exists.
+    All header files must inherit from this.
     """
 
+    # The actual source of the data (or a reference to it)
+    # that is going to be converted.
     source: Any
-    reader_id: str
+
+    # An identification of the function that is used to
+    # convert the source into the result object.
+    converter_id: str
+
+    _source_type = object
+
+    def __post_init__(self):
+        # TODO: In more modern python versions it would be
+        # good to check for things like tuple[str].
+        if not isinstance(self.source, self._source_type):
+            raise ValueError(
+                f"Source must be {self._source_type}, " f"not {type(self.source)}"
+            )
 
     def for_cache_name(self) -> typing.Generator[bytes]:
         for el in self._for_cache_name():
@@ -59,7 +79,7 @@ class BaseHeader(abc.ABC):
                 yield el
 
     def _for_cache_name(self) -> typing.Generator[bytes | str]:
-        yield self.reader_id
+        yield self.converter_id
 
     @abc.abstractmethod
     def is_valid(self, cache_path: pathlib.Path) -> bool:
@@ -75,21 +95,70 @@ class BasicPythonHeader(BaseHeader):
     python_version: str = platform.python_version()
 
 
+#####################
+# Invalidation logic
+#####################
+
+
+class InvalidateByExist:
+    """The cached file is valid if exists and is newer than the source file."""
+
+    def is_valid(self, cache_path: pathlib.Path) -> bool:
+        return cache_path.exists()
+
+
+class InvalidateByPathMTime(abc.ABC):
+    """The cached file is valid if exists and is newer than the source file."""
+
+    @property
+    @abc.abstractmethod
+    def source_path(self) -> pathlib.Path:
+        ...
+
+    def is_valid(self, cache_path: pathlib.Path):
+        return (
+            cache_path.exists()
+            and cache_path.stat().st_mtime > self.source_path.stat().st_mtime
+        )
+
+
+class InvalidateByMultiPathsMtime(abc.ABC):
+    """The cached file is valid if exists and is newer than the newest source file."""
+
+    @property
+    @abc.abstractmethod
+    def source_paths(self) -> pathlib.Path:
+        ...
+
+    @property
+    def newest_date(self):
+        return max((t.stat().st_mtime for t in self.source_paths), default=0)
+
+    def is_valid(self, cache_path: pathlib.Path):
+        return cache_path.exists() and cache_path.stat().st_mtime > self.newest_date
+
+
 ###############
 # Naming logic
 ###############
 
 
 class NameByFields:
+    """Name is built taking into account all fields in the Header
+    (except the source itself).
+    """
+
     def _for_cache_name(self):
         yield from super()._for_cache_name()
         for field in dc_fields(self):
-            if field.name not in ("source", "reader_id"):
+            if field.name not in ("source", "converter_id"):
                 yield getattr(self, field.name)
 
 
 class NameByFileContent:
     """Given a file source object, the name is built from its content."""
+
+    _source_type = pathlib.Path
 
     @property
     def source_path(self) -> pathlib.Path:
@@ -100,10 +169,11 @@ class NameByFileContent:
         yield self.source_path.read_bytes()
 
     @classmethod
-    def from_string(cls, s: str, reader_id: str):
-        return cls(pathlib.Path(s), reader_id)
+    def from_string(cls, s: str, converter_id: str):
+        return cls(pathlib.Path(s), converter_id)
 
 
+@dataclass(frozen=True)
 class NameByObj:
     """Given a pickable source object, the name is built from its content."""
 
@@ -115,10 +185,9 @@ class NameByObj:
 
 
 class NameByPath:
-    """Given a file source object, the name is built from its resolved path.
+    """Given a file source object, the name is built from its resolved path."""
 
-    The cached file is valid if exists and is newer than the source file.
-    """
+    _source_type = pathlib.Path
 
     @property
     def source_path(self) -> pathlib.Path:
@@ -129,15 +198,16 @@ class NameByPath:
         yield bytes(self.source_path.resolve())
 
     @classmethod
-    def from_string(cls, s: str, reader_id: str):
-        return cls(pathlib.Path(s), reader_id)
+    def from_string(cls, s: str, converter_id: str):
+        return cls(pathlib.Path(s), converter_id)
 
 
 class NameByMultiPaths:
-    """Given multiple file source object, the name is built from their resolved path.
-
-    The cached file is valid if exists and is newer than the newest source file.
+    """Given multiple file source object, the name is built from their resolved path
+    in ascending order.
     """
+
+    _source_type = tuple
 
     @property
     def source_paths(self) -> tuple[pathlib.Path]:
@@ -148,45 +218,27 @@ class NameByMultiPaths:
         yield from sorted(bytes(p.resolve()) for p in self.source_paths)
 
     @classmethod
-    def from_strings(cls, ss: Iterable[str], reader_id: str):
-        return cls(tuple(pathlib.Path(s) for s in ss), reader_id)
+    def from_strings(cls, ss: Iterable[str], converter_id: str):
+        return cls(tuple(pathlib.Path(s) for s in ss), converter_id)
 
 
 class NameByHashIter:
+    """Given multiple hashes, the name is built from them in ascending order."""
+
+    _source_type = tuple
+
     def _for_cache_name(self):
         yield from super()._for_cache_name()
         yield from sorted(h for h in self.source)
 
 
-#####################
-# Invalidation logic
-#####################
-
-
-class InvalidateByExist:
-    def is_valid(self, cache_path: pathlib.Path) -> bool:
-        return cache_path.exists()
-
-
-class InvalidateByPathMTime:
-    def is_valid(self, cache_path: pathlib.Path):
-        return (
-            cache_path.exists()
-            and cache_path.stat().st_mtime > self.source_path.stat().st_mtime
-        )
-
-
-class InvalidateByMultiPathsMtime:
-    @property
-    def newest_date(self):
-        return max((t.stat().st_mtime for t in self.source_paths), default=0)
-
-    def is_valid(self, cache_path: pathlib.Path):
-        return cache_path.exists() and cache_path.stat().st_mtime > self.newest_date
-
-
 class DiskCache:
-    """
+    """A class to store and load cached objects to disk, which
+    are built from a source object and conversion function.
+
+    The basename for the cache file is a hash hexdigest
+    built by feeding a collection of values determined by
+    the Header object.
 
     Parameters
     ----------
@@ -194,7 +246,7 @@ class DiskCache:
         indicates where the cache files will be saved.
     """
 
-    # Maps classes
+    # Maps classes to header class
     _header_classes: dict[type, BaseHeader] = None
 
     # Hasher object constructor (e.g. a member of hashlib)
@@ -213,8 +265,10 @@ class DiskCache:
         self._header_classes[object_class] = header_class
 
     def cache_stem_for(self, header: BaseHeader) -> str:
-        """Generate a hash representing the location of a memoized file
-        for a given filepath or object.
+        """Generate a hash representing the basename of a memoized file
+        for a given header.
+
+        The naming strategy is defined by the header class used.
         """
         hd = self._hasher()
         for value in header.for_cache_name():
@@ -224,6 +278,8 @@ class DiskCache:
     def cache_path_for(self, header: BaseHeader) -> pathlib.Path:
         """Generate a Path representing the location of a memoized file
         for a given filepath or object.
+
+        The naming strategy is defined by the header class used.
         """
         h = self.cache_stem_for(header)
         return self.cache_folder.joinpath(h).with_suffix(".pickle")
@@ -234,49 +290,72 @@ class DiskCache:
                 return v
         raise TypeError(f"Cannot find header class for {type(source_object)}")
 
-    def load(self, source_object, reader=None, pass_hash=False) -> tuple[Any, str]:
-        """Load and return the cached file if exists, and it's hash
-        differ from the actual
+    def load(self, source_object, converter=None, pass_hash=False) -> tuple[Any, str]:
+        """Given a source_object, return the converted value stored
+        in the cache together with the cached path stem
+
+        When the cache is not found:
+        - If a converter callable is given, use it on the source
+          object, store the result in the cache and return it.
+        - Return None, otherwise.
+
+        Two signatures for the converter are valid:
+        - source_object -> transformed object
+        - (source_object, cached_path_stem) -> transformed_object
+
+        To use the second one, use `pass_hash=True`.
+
+        If you want to do the conversion yourself outside this class,
+        use the converter argument to provide a name for it. This is
+        important as the cached_path_stem depends on the converter name.
         """
         header_class = self._get_header_class(source_object)
 
-        if isinstance(reader, str):
-            reader_id = reader
-            reader = None
+        if isinstance(converter, str):
+            converter_id = converter
+            converter = None
         else:
-            reader_id = getattr(reader, "__name__", "")
+            converter_id = getattr(converter, "__name__", "")
 
-        header = header_class(source_object, reader_id)
+        header = header_class(source_object, converter_id)
 
         cache_path = self.cache_path_for(header)
 
-        content = self.rawload(header, cache_path)
+        converted_object = self.rawload(header, cache_path)
 
-        if content:
-            return content, cache_path.stem
-        if reader is None:
+        if converted_object:
+            return converted_object, cache_path.stem
+        if converter is None:
             return None, cache_path.stem
 
         if pass_hash:
-            content = reader(source_object, cache_path.stem)
+            converted_object = converter(source_object, cache_path.stem)
         else:
-            content = reader(source_object)
+            converted_object = converter(source_object)
 
-        self.rawsave(header, content, cache_path)
+        self.rawsave(header, converted_object, cache_path)
 
-        return content, cache_path.stem
+        return converted_object, cache_path.stem
 
-    def save(self, obj, source_object, reader_id="") -> str:
-        """Save the object (in pickle format) to the cache folder
-        using a unique name generated using `cache_path_for`
+    def save(self, converted_object, source_object, converter_id="") -> str:
+        """Given a converted_object and its corresponding source_object,
+        store it in the cache and return the cached_path_stem.
         """
+
         header_class = self._get_header_class(source_object)
-        header = header_class(source_object, reader_id)
-        return self.rawsave(header, obj, self.cache_path_for(header)).stem
+        header = header_class(source_object, converter_id)
+        return self.rawsave(header, converted_object, self.cache_path_for(header)).stem
 
     def rawload(
         self, header: BaseHeader, cache_path: pathlib.Path = None
     ) -> Any | None:
+        """Load the converted_object from the cache if it is valid.
+
+        The invalidating strategy is defined by the header class used.
+
+        The cache_path is optional, it will be calculated from the header
+        if not given.
+        """
         if cache_path is None:
             cache_path = self.cache_path_for(header)
 
@@ -285,10 +364,13 @@ class DiskCache:
                 return pickle.load(fi)
 
     def rawsave(
-        self, header: BaseHeader, obj, cache_path: pathlib.Path = None
+        self, header: BaseHeader, converted, cache_path: pathlib.Path = None
     ) -> pathlib.Path:
-        """Save the object (in pickle format) to the cache folder
-        using a unique name generated using `cache_path_for`
+        """Save the converted object (in pickle format) and
+        its header (in json format) to the cache folder.
+
+        The cache_path is optional, it will be calculated from the header
+        if not given.
         """
         if cache_path is None:
             cache_path = self.cache_path_for(header)
@@ -297,13 +379,17 @@ class DiskCache:
             with cache_path.with_suffix(".json").open("w", encoding="utf-8") as fo:
                 json.dump({k: str(v) for k, v in dc_asdict(header).items()}, fo)
         with cache_path.open(mode="wb") as fo:
-            pickle.dump(obj, fo)
+            pickle.dump(converted, fo)
         return cache_path
 
 
 class DiskCacheByHash(DiskCache):
+    """Convenience class used for caching conversions that take a path,
+    naming by hashing its content.
+    """
+
     @dataclass(frozen=True)
-    class Header(InvalidateByExist, NameByFileContent, BaseHeader):
+    class Header(NameByFileContent, InvalidateByExist, BaseHeader):
         pass
 
     _header_classes = {
@@ -313,8 +399,13 @@ class DiskCacheByHash(DiskCache):
 
 
 class DiskCacheByMTime(DiskCache):
+    """Convenience class used for caching conversions that take a path,
+    naming by hashing its full path and invalidating by the file
+    modification time.
+    """
+
     @dataclass(frozen=True)
-    class Header(InvalidateByPathMTime, NameByPath, BaseHeader):
+    class Header(NameByPath, InvalidateByPathMTime, BaseHeader):
         pass
 
     _header_classes = {

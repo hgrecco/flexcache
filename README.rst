@@ -67,12 +67,20 @@ by hashing the file. Simply use `DiskCacheByHash` instead of
 Cached files are saved using the pickle protocol, and each has
 a companion json file with the header content.
 
+This idea is completely flexible, and apply not only to parser.
+In **flexcache** we say there are two types of objects: **source object**
+and **converted object**. The conversion function maps the former in
+to the latter. The cache stores the latter by looking a customizable
+aspect of the former.
+
+
 Building your own caching logic
 -------------------------------
 
 In certain cases you would like to customize how caching and
-invalidation is done. You can achieve this by subclassing the
-`DiskCache`.
+invalidation is done.
+
+You can achieve this by subclassing the `DiskCache`.
 
 .. code-block:: python
 
@@ -80,61 +88,66 @@ invalidation is done. You can achieve this by subclassing the
     >>> class MyDiskCache(DiskCache):
     ...
     ...    @dataclass(frozen=True)
-    ...    class MyHeader(NameByPathHeader, BasicPythonHeader):
+    ...    class MyHeader(NameByPathHeader, InvalidateByExist, BasicPythonHeader):
     ...         pass
     ...
     ...    _header_classes = {pathlib.Path: MyHeader}
 
-Here we create a custom Header class and use it to handle `pathlib.Path`
-objects. We provide a convenient set of Header classes.
+Here we created a custom Header class and use it to handle `pathlib.Path`
+objects. You can even have multiple headers registered in the same class
+to handle different source object types.
 
-You can also avoid saving the header by setting the `_store_header` class
-attribute to `False`.
+We provide a convenient set of mixable classes to achieve almost any behavior.
+These are divided in three categories and you must choose at least one
+from every kind.
+
+Headers
+~~~~~~~
+
+These classes store the information that will be saved along side the cached file.
+
+- **BaseHeader**: source object and identifier of the reader function.
+- **BasicPythonHeader**: source and identifier of the reader function,
+  platform, python implementation, python version.
 
 
-**MinimumHeader**
+Invalidate
+~~~~~~~~~~
 
-- source object limitations: None
-- header content: source object and identifier of the reader function.
-- values used for naming: identifier of the reader function.
-- invalidating logic: the cached file exists.
+These classes define how the cache will decide if the cached converted object is an actual
+representation of the source object.
 
-**BasicPythonHeader**: same as MinimumHeader but ...
+- **InvalidateByExist**: the cached file must exists.
+- **InvalidateByPathMTime**: the cached file exists and is newer than the source object
+  (which has to be `pathlib.Path`)
+- **InvalidateByMultiPathsMtime**: the cached file exists and is newer than the each path
+  in the source object (which has to be `tuple[pathlib.Path]`)
 
-- source object limitations: None
-- header content: source and identifier of the reader function, platform, python implementation, python version.
-- values used for naming: identifier of the reader function, platform, python implementation, python version.
-- invalidating logic: the cached file exists.
 
-**NameByFileContentHeader**: must be subclassed with MinimumHeader or BasicPythonHeader
+Naming
+~~~~~~
 
-- source object limitations:  must be a `pathlib.Path`
-- header content: depends on the sibling classes.
-- values used for naming: adds file content as bytes.
-- invalidating logic: the cached file exists.
+These classes define how the name is generated. The basename for the cache file is
+a hash hexdigest built by feeding a collection of values determined by the Header object.
 
-**NameByObjHeader**: must be subclassed with MinimumHeader or BasicPythonHeader
+- **NameByFields**: all fields except the `source_object`.
+- **NameByPath**: resolved path of the source object
+  (which has to be `pathlib.Path`).
+- **NameByMultiPaths**: resolved path of each path source object
+  (which has to be `tuple[pathlib.Path]`), sorted in ascending order.
+- **NameByFileContent**: the bytes content of the file referred by the source object
+  (which has to be `pathlib.Path`).
+- **NameByHashIter**: the values in the source object.
+  (which has to be `tuple[str]`), sorted in ascending order
+- **NameByObj**: the pickled version of the source object
+  (which has to be pickable), using the highest available protocol.
+  This also adds `pickle_protocol` to the header.
 
-- The source object must be pickable.
-- header content: depends on the sibling classes. Adds `pickle_protocol`.
-- values used for naming: adds pickled object using `pickle_protocol` version.
-- invalidating logic: the cached file exists.
 
-**NameByPathHeader**: must be subclassed with MinimumHeader or BasicPythonHeader
+You can mix and match as you see it fit, and of course, you can make your own.
 
-- source object limitations: must be a `pathlib.Path`
-- header content: depends on the sibling classes.
-- values used for naming: adds resolved path.
-- invalidating logic: the cached file exists and is newer than the source.
-
-**NameByPathHeader**: must be subclassed with MinimumHeader or BasicPythonHeader
-
-- source object limitations: must be a `pathlib.Path`
-- header content: depends on the sibling classes.
-- values used for naming: adds resolved paths.
-- invalidating logic: the cached file exists and is newer than the newest source.
-
-but you can make your own. Take a look at the code!
+Finally, you can also avoid saving the header by setting the `_store_header`
+class attribute to `False`.
 
 ----
 
