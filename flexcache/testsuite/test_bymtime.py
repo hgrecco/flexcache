@@ -94,7 +94,7 @@ def test_func(tmp_path):
     dfile.write_bytes(b"1234")
 
     dc = DiskCacheByMTime(tmp_path)
-    assert dc.load(dfile, reader=parser)[0] == b"1234"
+    assert dc.load(dfile, converter=parser)[0] == b"1234"
     # There should be a cache file now
     assert len(tuple(tmp_path.glob("*.pickle"))) == 1
     assert len(tuple(tmp_path.glob("*.json"))) == 1
@@ -105,7 +105,7 @@ def test_func(tmp_path):
 
     # Verify that the cache was not loaded as the content of the original file
     # has changed.
-    assert dc.load(dfile, reader=parser)[0] == b"1235"
+    assert dc.load(dfile, converter=parser)[0] == b"1235"
     # There should be still ONE cache files now
     assert len(tuple(tmp_path.glob("*.pickle"))) == 1
     assert len(tuple(tmp_path.glob("*.json"))) == 1

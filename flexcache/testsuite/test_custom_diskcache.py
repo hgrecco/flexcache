@@ -11,8 +11,8 @@ def test_register(tmp_path):
         flexcache.InvalidateByExist, flexcache.NameByFields, flexcache.BaseHeader
     ):
         @classmethod
-        def from_int(cls, source, reader_id):
-            return cls(bytes(source), reader_id)
+        def from_int(cls, source, converter_id):
+            return cls(bytes(source), converter_id)
 
     c.register_header_class(int, Header.from_int)
 
@@ -29,15 +29,15 @@ def test_missing_cache_path(tmp_path):
         flexcache.InvalidateByExist, flexcache.NameByFields, flexcache.BaseHeader
     ):
         @classmethod
-        def from_int(cls, source, reader_id):
-            return cls(bytes(source), reader_id)
+        def from_int(cls, source, converter_id):
+            return cls(bytes(source), converter_id)
 
     hdr = Header("123", "456")
     assert c.rawsave(hdr, "789").stem == c.cache_stem_for(hdr)
     assert c.rawload(hdr) == "789"
 
 
-def test_reader_id(tmp_path):
+def test_converter_id(tmp_path):
 
     c = DiskCache(tmp_path)
 
@@ -45,8 +45,8 @@ def test_reader_id(tmp_path):
         flexcache.InvalidateByExist, flexcache.NameByFields, flexcache.BaseHeader
     ):
         @classmethod
-        def from_int(cls, source, reader_id):
-            return cls(bytes(source), reader_id)
+        def from_int(cls, source, converter_id):
+            return cls(bytes(source), converter_id)
 
     c.register_header_class(int, Header.from_int)
 
@@ -59,7 +59,7 @@ def test_reader_id(tmp_path):
     assert c.save(content, 21, "func") == this_hash
 
 
-def test_reader_pass_hash(tmp_path):
+def test_converter_pass_hash(tmp_path):
 
     c = DiskCache(tmp_path)
 
@@ -67,8 +67,8 @@ def test_reader_pass_hash(tmp_path):
         flexcache.InvalidateByExist, flexcache.NameByFields, flexcache.BaseHeader
     ):
         @classmethod
-        def from_int(cls, source, reader_id):
-            return cls(bytes(source), reader_id)
+        def from_int(cls, source, converter_id):
+            return cls(bytes(source), converter_id)
 
     c.register_header_class(int, Header.from_int)
 

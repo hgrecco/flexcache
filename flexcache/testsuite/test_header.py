@@ -19,8 +19,8 @@ def test_empty(tmp_path):
     ):
         pass
 
-    hdr = Hdr("123", "myreader")
-    assert tuple(hdr.for_cache_name()) == ("myreader".encode("utf-8"),)
+    hdr = Hdr("123", "myconverter")
+    assert tuple(hdr.for_cache_name()) == ("myconverter".encode("utf-8"),)
 
     p1 = tmp_path / "cache.pickle"
     assert not hdr.is_valid(p1)
@@ -39,7 +39,7 @@ def test_basic_python():
     ):
         pass
 
-    hdr = Hdr("123", "myreader")
+    hdr = Hdr("123", "myconverter")
     cn = tuple(hdr.for_cache_name())
     assert len(cn) == 4
 
@@ -58,7 +58,7 @@ def test_name_by_content(tmp_path):
 
     p = tmp_path / "source.txt"
     p.write_bytes(b"1234")
-    hdr = Hdr(p, "myreader")
+    hdr = Hdr(p, "myconverter")
 
     assert hdr.source_path == p
     cn = tuple(hdr.for_cache_name())
@@ -74,13 +74,13 @@ def test_name_by_content(tmp_path):
 def test_name_by_path(tmp_path):
     @dataclass(frozen=True)
     class Hdr(
-        flexcache.InvalidateByPathMTime, flexcache.NameByPath, flexcache.BaseHeader
+        flexcache.NameByPath, flexcache.InvalidateByPathMTime, flexcache.BaseHeader
     ):
         pass
 
     p = tmp_path / "source.txt"
     p.write_bytes(b"1234")
-    hdr = Hdr(p, "myreader")
+    hdr = Hdr(p, "myconverter")
 
     assert hdr.source_path == p
     cn = tuple(hdr.for_cache_name())
@@ -96,8 +96,8 @@ def test_name_by_path(tmp_path):
 def test_name_by_paths(tmp_path):
     @dataclass(frozen=True)
     class Hdr(
-        flexcache.InvalidateByMultiPathsMtime,
         flexcache.NameByMultiPaths,
+        flexcache.InvalidateByMultiPathsMtime,
         flexcache.BaseHeader,
     ):
         pass
@@ -111,7 +111,7 @@ def test_name_by_paths(tmp_path):
     p2 = tmp_path / "source2.txt"
     p1.write_bytes(b"1234")
     p2.write_bytes(b"1234")
-    hdr = Hdr((p1, p2), "myreader")
+    hdr = Hdr((p1, p2), "myconverter")
 
     time.sleep(FS_SLEEP)
 
@@ -132,7 +132,7 @@ def test_name_by_paths(tmp_path):
     assert not hdr.is_valid(p0)
     assert hdr.is_valid(p3)
 
-    hdr = Hdr.from_strings((str(p1), str(p2)), "myreader")
+    hdr = Hdr.from_strings((str(p1), str(p2)), "myconverter")
     assert hdr.source_paths == (p1, p2)
 
 
@@ -141,7 +141,7 @@ def test_name_by_obj(tmp_path):
     class Hdr(flexcache.InvalidateByExist, flexcache.NameByObj, flexcache.BaseHeader):
         pass
 
-    hdr = Hdr((1, 2, 3), "myreader")
+    hdr = Hdr((1, 2, 3), "myconverter")
 
     cn = tuple(hdr.for_cache_name())
     assert len(cn) == 2
@@ -161,7 +161,7 @@ def test_name_by_hash(tmp_path):
     ):
         pass
 
-    hdr = Hdr(("b", "a", "c"), "myreader")
+    hdr = Hdr(("b", "a", "c"), "myconverter")
 
     cn = tuple(hdr.for_cache_name())
     assert len(cn) == 4
