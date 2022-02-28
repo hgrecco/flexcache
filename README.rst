@@ -50,7 +50,7 @@ and then is loaded:
 
 .. code-block:: python
 
-    >>> content = dc.load("source.txt", reader=parse)
+    >>> content, basename = dc.load("source.txt", converter=parse)
 
 If this is the first call, as the cached result is not available,
 `parse` will be called on `source.txt` and the output will be saved
@@ -106,8 +106,8 @@ Headers
 
 These classes store the information that will be saved along side the cached file.
 
-- **BaseHeader**: source object and identifier of the reader function.
-- **BasicPythonHeader**: source and identifier of the reader function,
+- **BaseHeader**: source object and identifier of the converter function.
+- **BasicPythonHeader**: source and identifier of the converter function,
   platform, python implementation, python version.
 
 
