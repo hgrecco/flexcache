@@ -151,6 +151,27 @@ def test_name_by_obj(tmp_path):
         assert False
 
 
+def test_name_by_hash(tmp_path):
+    @dataclass(frozen=True)
+    class Hdr(
+        flexcache.InvalidateByExist, flexcache.NameByHashIter, flexcache.BaseHeader
+    ):
+        pass
+
+    hdr = Hdr(("b", "a", "c"), "myreader")
+
+    cn = tuple(hdr.for_cache_name())
+    assert len(cn) == 4
+    assert cn[1] == b"a"
+    assert cn[2] == b"b"
+    assert cn[3] == b"c"
+
+    try:
+        json.dumps({k: str(v) for k, v in dc_asdict(hdr).items()})
+    except Exception:
+        assert False
+
+
 def test_predefined_headers(tmp_path):
     fn = "source.txt"
     hdr = flexcache.DiskCacheByMTime.Header.from_string(fn, "123")
