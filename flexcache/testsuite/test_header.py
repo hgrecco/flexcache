@@ -13,7 +13,13 @@ FS_SLEEP = 0.010
 
 
 def test_empty(tmp_path):
-    hdr = flexcache.MinimumHeader("123", "myreader")
+    @dataclass(frozen=True)
+    class Hdr(
+        flexcache.InvalidateByExist, flexcache.NameByFields, flexcache.BaseHeader
+    ):
+        pass
+
+    hdr = Hdr("123", "myreader")
     assert tuple(hdr.for_cache_name()) == ("myreader".encode("utf-8"),)
 
     p1 = tmp_path / "cache.pickle"
@@ -27,7 +33,13 @@ def test_empty(tmp_path):
 
 
 def test_basic_python():
-    hdr = flexcache.BasicPythonHeader("123", "myreader")
+    @dataclass(frozen=True)
+    class Hdr(
+        flexcache.InvalidateByExist, flexcache.NameByFields, flexcache.BasicPythonHeader
+    ):
+        pass
+
+    hdr = Hdr("123", "myreader")
     cn = tuple(hdr.for_cache_name())
     assert len(cn) == 4
 
@@ -39,7 +51,9 @@ def test_basic_python():
 
 def test_name_by_content(tmp_path):
     @dataclass(frozen=True)
-    class Hdr(flexcache.NameByFileContentHeader, flexcache.MinimumHeader):
+    class Hdr(
+        flexcache.InvalidateByExist, flexcache.NameByFileContent, flexcache.BaseHeader
+    ):
         pass
 
     p = tmp_path / "source.txt"
@@ -59,7 +73,9 @@ def test_name_by_content(tmp_path):
 
 def test_name_by_path(tmp_path):
     @dataclass(frozen=True)
-    class Hdr(flexcache.NameByPathHeader, flexcache.MinimumHeader):
+    class Hdr(
+        flexcache.InvalidateByPathMTime, flexcache.NameByPath, flexcache.BaseHeader
+    ):
         pass
 
     p = tmp_path / "source.txt"
@@ -79,7 +95,11 @@ def test_name_by_path(tmp_path):
 
 def test_name_by_paths(tmp_path):
     @dataclass(frozen=True)
-    class Hdr(flexcache.NameByMultiplePathsHeader, flexcache.MinimumHeader):
+    class Hdr(
+        flexcache.InvalidateByMultiPathsMtime,
+        flexcache.NameByMultiPaths,
+        flexcache.BaseHeader,
+    ):
         pass
 
     p0 = tmp_path / "source0.txt"
@@ -115,7 +135,7 @@ def test_name_by_paths(tmp_path):
 
 def test_name_by_obj(tmp_path):
     @dataclass(frozen=True)
-    class Hdr(flexcache.NameByObjHeader, flexcache.MinimumHeader):
+    class Hdr(flexcache.InvalidateByExist, flexcache.NameByObj, flexcache.BaseHeader):
         pass
 
     hdr = Hdr((1, 2, 3), "myreader")

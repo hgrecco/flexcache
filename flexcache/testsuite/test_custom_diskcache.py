@@ -7,7 +7,9 @@ from flexcache import DiskCache
 def test_register(tmp_path):
     c = DiskCache(tmp_path)
 
-    class Header(flexcache.MinimumHeader):
+    class Header(
+        flexcache.InvalidateByExist, flexcache.NameByFields, flexcache.BaseHeader
+    ):
         @classmethod
         def from_int(cls, source, reader_id):
             return cls(bytes(source), reader_id)
@@ -23,6 +25,13 @@ def test_register(tmp_path):
 def test_missing_cache_path(tmp_path):
     c = DiskCache(tmp_path)
 
-    hdr = flexcache.MinimumHeader("123", "456")
+    class Header(
+        flexcache.InvalidateByExist, flexcache.NameByFields, flexcache.BaseHeader
+    ):
+        @classmethod
+        def from_int(cls, source, reader_id):
+            return cls(bytes(source), reader_id)
+
+    hdr = Header("123", "456")
     assert c.rawsave(hdr, "789").stem == c.cache_stem_for(hdr)
     assert c.rawload(hdr) == "789"
