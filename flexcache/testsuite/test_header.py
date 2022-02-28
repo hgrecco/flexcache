@@ -5,6 +5,8 @@ import time
 from dataclasses import asdict as dc_asdict
 from dataclasses import dataclass
 
+import pytest
+
 import flexcache
 
 # These sleep time is needed when run on GitHub Actions
@@ -184,3 +186,14 @@ def test_predefined_headers(tmp_path):
     hdr = flexcache.DiskCacheByHash.Header.from_string(fn, "123")
     assert isinstance(hdr.source_path, pathlib.Path)
     assert str(hdr.source_path) == fn
+
+
+def test_wrong_type():
+    @dataclass(frozen=True)
+    class Hdr(
+        flexcache.NameByPath, flexcache.InvalidateByPathMTime, flexcache.BaseHeader
+    ):
+        pass
+
+    with pytest.raises(TypeError):
+        Hdr("testing", "my_converter")

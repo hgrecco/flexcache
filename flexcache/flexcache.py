@@ -67,7 +67,7 @@ class BaseHeader(abc.ABC):
         # TODO: In more modern python versions it would be
         # good to check for things like tuple[str].
         if not isinstance(self.source, self._source_type):
-            raise ValueError(
+            raise TypeError(
                 f"Source must be {self._source_type}, " f"not {type(self.source)}"
             )
 
