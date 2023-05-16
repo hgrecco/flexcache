@@ -1,5 +1,76 @@
+[project]
+name = "flexcache"
+authors = [
+  {name="Hernan E. Grecco", email="hernan.grecco@gmail.com"}
+]
+license = {text = "BSD"}
+description = "Saves and loads to the cache a transformed versions of a source object."
+readme = "README.rst"
+maintainers = [
+  {name="Hernan E. Grecco", email="hernan.grecco@gmail.com"},
+]
+keywords = ["cache", "optimization", "storage", "disk"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX",
+    "Programming Language :: Python",
+    "Topic :: System :: Filesystems",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Utilities",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11"
+]
+requires-python = ">=3.9"
+dynamic = ["version"] # Version is taken from git tags using setuptools_scm
+dependencies = [
+  "typing_extensions"
+]
+
+[tool.setuptools.package-data]
+flexcache = ["py.typed"]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-mpl",
+    "pytest-cov",
+    "pytest-subtests"
+]
+
+[project.urls]
+Homepage = "https://github.com/hgrecco/flexcache"
+
+[tool.setuptools]
+packages = ["flexcache"]
+
 [build-system]
-requires = ["setuptools>=41", "wheel", "setuptools_scm[toml]>=3.4.3"]
+requires = ["setuptools>=61", "wheel", "setuptools_scm[toml]>=3.4.3"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
+
+[tool.ruff.isort]
+required-imports = ["from __future__ import annotations"]
+known-first-party= ["pint"]
+
+
+[tool.ruff]
+ignore = [
+  # whitespace before ':' - doesn't work well with black
+  # "E203",
+  "E402",
+  # line too long - let black worry about that
+  "E501",
+  # do not assign a lambda expression, use a def
+  "E731",
+  # line break before binary operator
+  # "W503"
+]
+extend-exclude = ["build"]
+line-length=88
