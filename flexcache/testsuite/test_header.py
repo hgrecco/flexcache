@@ -179,13 +179,13 @@ def test_name_by_hash(tmp_path):
 
 def test_predefined_headers(tmp_path):
     fn = "source.txt"
-    hdr = flexcache.DiskCacheByMTime.Header.from_string(fn, "123")
-    assert isinstance(hdr.source_path, pathlib.Path)
-    assert str(hdr.source_path) == fn
+    hdr0 = flexcache.DiskCacheByMTime.Header.from_string(fn, "123")
+    assert isinstance(hdr0.source_path, pathlib.Path)
+    assert str(hdr0.source_path) == fn
 
-    hdr = flexcache.DiskCacheByHash.Header.from_string(fn, "123")
-    assert isinstance(hdr.source_path, pathlib.Path)
-    assert str(hdr.source_path) == fn
+    hdr1 = flexcache.DiskCacheByHash.Header.from_string(fn, "123")
+    assert isinstance(hdr1.source_path, pathlib.Path)
+    assert str(hdr1.source_path) == fn
 
 
 def test_wrong_type():
@@ -193,7 +193,5 @@ def test_wrong_type():
     class Hdr(flexcache.NameByPath, flexcache.InvalidateByPathMTime):
         pass
 
-    print(Hdr._source_type)
-    print(isinstance("tes", Hdr._source_type))
     with pytest.raises(TypeError):
         Hdr("testing", "my_converter")
