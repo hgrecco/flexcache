@@ -35,11 +35,36 @@ import json
 import pathlib
 import pickle
 import platform
-import typing
+import sys
+
 from dataclasses import asdict as dc_asdict
 from dataclasses import dataclass
 from dataclasses import fields as dc_fields
-from typing import Any, Iterable
+from typing import Any, Iterable, Union, Generator, Optional, Callable
+
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias  # noqa
+else:
+    from typing_extensions import TypeAlias  # noqa
+
+
+if sys.version_info >= (3, 11):
+    from typing import Self  # noqa
+else:
+    from typing_extensions import Self  # noqa
+
+
+Pickable: TypeAlias = Any
+
+Converter1: TypeAlias = Callable[
+    [
+        Any,
+    ],
+    Any,
+]
+Converter2: TypeAlias = Callable[[Any, str], Any]
+
+Converter: TypeAlias = Union[Converter1, Converter2]
 
 #########
 # Header
@@ -61,7 +86,7 @@ class BaseHeader(abc.ABC):
     # convert the source into the result object.
     converter_id: str
 
-    _source_type = object
+    _source_type = object  # typing: ignore
 
     def __post_init__(self):
         # TODO: In more modern python versions it would be
@@ -71,7 +96,7 @@ class BaseHeader(abc.ABC):
                 f"Source must be {self._source_type}, " f"not {type(self.source)}"
             )
 
-    def for_cache_name(self) -> typing.Generator[bytes]:
+    def for_cache_name(self) -> Generator[bytes, None, None]:
         """The basename for the cache file is a hash hexdigest
         built by feeding this collection of values.
 
@@ -84,7 +109,7 @@ class BaseHeader(abc.ABC):
             else:
                 yield el
 
-    def _for_cache_name(self) -> typing.Generator[bytes | str]:
+    def _for_cache_name(self) -> Generator[Union[bytes, str], None, None]:
         """The basename for the cache file is a hash hexdigest
         built by feeding this collection of values.
 
@@ -97,6 +122,9 @@ class BaseHeader(abc.ABC):
         """Return True if the cache_path is an cached version
         of the source_object represented by this header.
         """
+
+
+HeaderBuilder: TypeAlias = Union[type[BaseHeader], Callable[[Any, str], BaseHeader]]
 
 
 @dataclass(frozen=True)
@@ -113,14 +141,16 @@ class BasicPythonHeader(BaseHeader):
 #####################
 
 
-class InvalidateByExist:
+@dataclass(frozen=True)
+class InvalidateByExist(BaseHeader):
     """The cached file is valid if exists and is newer than the source file."""
 
     def is_valid(self, cache_path: pathlib.Path) -> bool:
         return cache_path.exists()
 
 
-class InvalidateByPathMTime(abc.ABC):
+@dataclass(frozen=True)
+class InvalidateByPathMTime(BaseHeader):
     """The cached file is valid if exists and is newer than the source file."""
 
     @property
@@ -128,26 +158,27 @@ class InvalidateByPathMTime(abc.ABC):
     def source_path(self) -> pathlib.Path:
         ...
 
-    def is_valid(self, cache_path: pathlib.Path):
+    def is_valid(self, cache_path: pathlib.Path) -> bool:
         return (
             cache_path.exists()
             and cache_path.stat().st_mtime > self.source_path.stat().st_mtime
         )
 
 
-class InvalidateByMultiPathsMtime(abc.ABC):
+@dataclass(frozen=True)
+class InvalidateByMultiPathsMtime(BaseHeader):
     """The cached file is valid if exists and is newer than the newest source file."""
 
     @property
     @abc.abstractmethod
-    def source_paths(self) -> pathlib.Path:
+    def source_paths(self) -> tuple[pathlib.Path, ...]:
         ...
 
     @property
-    def newest_date(self):
-        return max((t.stat().st_mtime for t in self.source_paths), default=0)
+    def newest_date(self) -> float:
+        return max((p.stat().st_mtime for p in self.source_paths), default=0.0)
 
-    def is_valid(self, cache_path: pathlib.Path):
+    def is_valid(self, cache_path: pathlib.Path) -> bool:
         return cache_path.exists() and cache_path.stat().st_mtime > self.newest_date
 
 
@@ -156,19 +187,21 @@ class InvalidateByMultiPathsMtime(abc.ABC):
 ###############
 
 
-class NameByFields:
+@dataclass(frozen=True)
+class NameByFields(BaseHeader):
     """Name is built taking into account all fields in the Header
     (except the source itself).
     """
 
-    def _for_cache_name(self):
+    def _for_cache_name(self) -> Generator[Any, None, None]:
         yield from super()._for_cache_name()
         for field in dc_fields(self):
             if field.name not in ("source", "converter_id"):
                 yield getattr(self, field.name)
 
 
-class NameByFileContent:
+@dataclass(frozen=True)
+class NameByFileContent(BaseHeader):
     """Given a file source object, the name is built from its content."""
 
     _source_type = pathlib.Path
@@ -177,27 +210,28 @@ class NameByFileContent:
     def source_path(self) -> pathlib.Path:
         return self.source
 
-    def _for_cache_name(self):
+    def _for_cache_name(self) -> Generator[Any, None, None]:
         yield from super()._for_cache_name()
         yield self.source_path.read_bytes()
 
     @classmethod
-    def from_string(cls, s: str, converter_id: str):
+    def from_string(cls, s: str, converter_id: str) -> Self:
         return cls(pathlib.Path(s), converter_id)
 
 
 @dataclass(frozen=True)
-class NameByObj:
+class NameByObj(BaseHeader):
     """Given a pickable source object, the name is built from its content."""
 
     pickle_protocol: int = pickle.HIGHEST_PROTOCOL
 
-    def _for_cache_name(self):
+    def _for_cache_name(self) -> Generator[Any, None, None]:
         yield from super()._for_cache_name()
         yield pickle.dumps(self.source, protocol=self.pickle_protocol)
 
 
-class NameByPath:
+@dataclass(frozen=True)
+class NameByPath(BaseHeader):
     """Given a file source object, the name is built from its resolved path."""
 
     _source_type = pathlib.Path
@@ -206,16 +240,17 @@ class NameByPath:
     def source_path(self) -> pathlib.Path:
         return self.source
 
-    def _for_cache_name(self):
+    def _for_cache_name(self) -> Generator[Any, None, None]:
         yield from super()._for_cache_name()
         yield bytes(self.source_path.resolve())
 
     @classmethod
-    def from_string(cls, s: str, converter_id: str):
+    def from_string(cls, s: str, converter_id: str) -> Self:
         return cls(pathlib.Path(s), converter_id)
 
 
-class NameByMultiPaths:
+@dataclass(frozen=True)
+class NameByMultiPaths(BaseHeader):
     """Given multiple file source object, the name is built from their resolved path
     in ascending order.
     """
@@ -223,10 +258,10 @@ class NameByMultiPaths:
     _source_type = tuple
 
     @property
-    def source_paths(self) -> tuple[pathlib.Path]:
+    def source_paths(self) -> tuple[pathlib.Path, ...]:
         return self.source
 
-    def _for_cache_name(self):
+    def _for_cache_name(self) -> Generator[Any, None, None]:
         yield from super()._for_cache_name()
         yield from sorted(bytes(p.resolve()) for p in self.source_paths)
 
@@ -235,12 +270,13 @@ class NameByMultiPaths:
         return cls(tuple(pathlib.Path(s) for s in ss), converter_id)
 
 
-class NameByHashIter:
+@dataclass(frozen=True)
+class NameByHashIter(BaseHeader):
     """Given multiple hashes, the name is built from them in ascending order."""
 
     _source_type = tuple
 
-    def _for_cache_name(self):
+    def _for_cache_name(self) -> Generator[Any, None, None]:
         yield from super()._for_cache_name()
         yield from sorted(h for h in self.source)
 
@@ -260,7 +296,7 @@ class DiskCache:
     """
 
     # Maps classes to header class
-    _header_classes: dict[type, BaseHeader] = None
+    _header_classes: dict[type, HeaderBuilder]
 
     # Hasher object constructor (e.g. a member of hashlib)
     # must implement update(b: bytes) and hexdigest() methods
@@ -272,9 +308,9 @@ class DiskCache:
     def __init__(self, cache_folder: str | pathlib.Path):
         self.cache_folder = pathlib.Path(cache_folder)
         self.cache_folder.mkdir(parents=True, exist_ok=True)
-        self._header_classes = self._header_classes or {}
+        self._header_classes = getattr(self, "_header_classes", {})
 
-    def register_header_class(self, object_class: type, header_class: BaseHeader):
+    def register_header_class(self, object_class: type, header_class: HeaderBuilder):
         self._header_classes[object_class] = header_class
 
     def cache_stem_for(self, header: BaseHeader) -> str:
@@ -297,13 +333,18 @@ class DiskCache:
         h = self.cache_stem_for(header)
         return self.cache_folder.joinpath(h).with_suffix(".pickle")
 
-    def _get_header_class(self, source_object) -> BaseHeader:
+    def _get_header_class(self, source_object: Any) -> HeaderBuilder:
         for k, v in self._header_classes.items():
             if isinstance(source_object, k):
                 return v
         raise TypeError(f"Cannot find header class for {type(source_object)}")
 
-    def load(self, source_object, converter=None, pass_hash=False) -> tuple[Any, str]:
+    def load(
+        self,
+        source_object: Any,
+        converter: Optional[Union[str, Converter]] = None,
+        pass_hash: bool = False,
+    ) -> tuple[Any, str]:
         """Given a source_object, return the converted value stored
         in the cache together with the cached path stem
 
@@ -328,7 +369,7 @@ class DiskCache:
             converter_id = converter
             converter = None
         else:
-            converter_id = getattr(converter, "__name__", "")
+            converter_id: str = getattr(converter, "__name__", "")
 
         header = header_class(source_object, converter_id)
 
@@ -350,7 +391,9 @@ class DiskCache:
 
         return converted_object, cache_path.stem
 
-    def save(self, converted_object, source_object, converter_id="") -> str:
+    def save(
+        self, converted_object: Pickable, source_object: Any, converter_id: str = ""
+    ) -> str:
         """Given a converted_object and its corresponding source_object,
         store it in the cache and return the cached_path_stem.
         """
@@ -360,8 +403,8 @@ class DiskCache:
         return self.rawsave(header, converted_object, self.cache_path_for(header)).stem
 
     def rawload(
-        self, header: BaseHeader, cache_path: pathlib.Path = None
-    ) -> Any | None:
+        self, header: BaseHeader, cache_path: Optional[pathlib.Path] = None
+    ) -> Optional[Pickable]:
         """Load the converted_object from the cache if it is valid.
 
         The invalidating strategy is defined by the header class used.
@@ -376,8 +419,13 @@ class DiskCache:
             with cache_path.open(mode="rb") as fi:
                 return pickle.load(fi)
 
+        return None
+
     def rawsave(
-        self, header: BaseHeader, converted, cache_path: pathlib.Path = None
+        self,
+        header: BaseHeader,
+        converted_object: Pickable,
+        cache_path: Optional[pathlib.Path] = None,
     ) -> pathlib.Path:
         """Save the converted object (in pickle format) and
         its header (in json format) to the cache folder.
@@ -392,7 +440,7 @@ class DiskCache:
             with cache_path.with_suffix(".json").open("w", encoding="utf-8") as fo:
                 json.dump({k: str(v) for k, v in dc_asdict(header).items()}, fo)
         with cache_path.open(mode="wb") as fo:
-            pickle.dump(converted, fo)
+            pickle.dump(converted_object, fo)
         return cache_path
 
 
@@ -405,7 +453,7 @@ class DiskCacheByHash(DiskCache):
     class Header(NameByFileContent, InvalidateByExist, BaseHeader):
         pass
 
-    _header_classes = {
+    _header_classes: dict[type, HeaderBuilder] = {
         pathlib.Path: Header,
         str: Header.from_string,
     }
@@ -421,7 +469,7 @@ class DiskCacheByMTime(DiskCache):
     class Header(NameByPath, InvalidateByPathMTime, BaseHeader):
         pass
 
-    _header_classes = {
+    _header_classes: dict[type, HeaderBuilder] = {
         pathlib.Path: Header,
         str: Header.from_string,
     }

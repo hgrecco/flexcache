@@ -11,10 +11,12 @@
 """
 
 
-import pkg_resources
+from __future__ import annotations
+
+from importlib.metadata import version
 
 try:  # pragma: no cover
-    __version__ = pkg_resources.get_distribution("flexcache").version
+    __version__ = version("flexcache")
 except Exception:  # pragma: no cover
     # we seem to have a local copy not installed without setuptools
     # so the reported version will be unknown
@@ -38,19 +40,19 @@ from .flexcache import (
 )
 
 __all__ = (
-    __version__,
-    BaseHeader,
-    BasicPythonHeader,
-    NameByFields,
-    NameByFileContent,
-    NameByObj,
-    NameByPath,
-    NameByMultiPaths,
-    NameByHashIter,
-    DiskCache,
-    DiskCacheByHash,
-    DiskCacheByMTime,
-    InvalidateByExist,
-    InvalidateByPathMTime,
-    InvalidateByMultiPathsMtime,
+    "__version__",
+    "BaseHeader",
+    "BasicPythonHeader",
+    "NameByFields",
+    "NameByFileContent",
+    "NameByObj",
+    "NameByPath",
+    "NameByMultiPaths",
+    "NameByHashIter",
+    "DiskCache",
+    "DiskCacheByHash",
+    "DiskCacheByMTime",
+    "InvalidateByExist",
+    "InvalidateByPathMTime",
+    "InvalidateByMultiPathsMtime",
 )

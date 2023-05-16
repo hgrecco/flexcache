@@ -190,10 +190,10 @@ def test_predefined_headers(tmp_path):
 
 def test_wrong_type():
     @dataclass(frozen=True)
-    class Hdr(
-        flexcache.NameByPath, flexcache.InvalidateByPathMTime, flexcache.BaseHeader
-    ):
+    class Hdr(flexcache.NameByPath, flexcache.InvalidateByPathMTime):
         pass
 
+    print(Hdr._source_type)
+    print(isinstance("tes", Hdr._source_type))
     with pytest.raises(TypeError):
         Hdr("testing", "my_converter")
