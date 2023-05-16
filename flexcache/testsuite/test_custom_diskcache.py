@@ -38,7 +38,6 @@ def test_missing_cache_path(tmp_path):
 
 
 def test_converter_id(tmp_path):
-
     c = DiskCache(tmp_path)
 
     class Header(
@@ -60,7 +59,6 @@ def test_converter_id(tmp_path):
 
 
 def test_converter_pass_hash(tmp_path):
-
     c = DiskCache(tmp_path)
 
     class Header(
