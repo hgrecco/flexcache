@@ -40,7 +40,7 @@ import sys
 from dataclasses import asdict as dc_asdict
 from dataclasses import dataclass
 from dataclasses import fields as dc_fields
-from typing import Any, Iterable, Union, Generator, Optional, Callable
+from typing import Any, Iterable, Union, Generator, Optional, Callable, ClassVar
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias  # noqa
@@ -86,7 +86,7 @@ class BaseHeader(abc.ABC):
     # convert the source into the result object.
     converter_id: str
 
-    _source_type = object  # typing: ignore
+    _source_type: ClassVar[Any] = object
 
     def __post_init__(self):
         # TODO: In more modern python versions it would be
