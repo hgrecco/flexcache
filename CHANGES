@@ -2,10 +2,12 @@ flexcache Changelog
 ===================
 
 
-0.3 (unreleased)
+0.3 (2023-08-03)
 ----------------
 
-- Nothing changed yet.
+- Better typing support
+- Tests against Python 3.11 and 3.12
+- Updated package infrastructure.
 
 
 0.2 (2022-02-28)
