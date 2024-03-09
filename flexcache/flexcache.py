@@ -36,11 +36,10 @@ import pathlib
 import pickle
 import platform
 import sys
-
 from dataclasses import asdict as dc_asdict
 from dataclasses import dataclass
 from dataclasses import fields as dc_fields
-from typing import Any, Iterable, Union, Generator, Optional, Callable, ClassVar
+from typing import Any, Callable, ClassVar, Generator, Iterable, Optional, Union
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias  # noqa
