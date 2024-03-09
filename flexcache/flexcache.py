@@ -365,11 +365,12 @@ class DiskCache:
         """
         header_class = self._get_header_class(source_object)
 
+        converter_id: str
         if isinstance(converter, str):
             converter_id = converter
             converter = None
         else:
-            converter_id: str = getattr(converter, "__name__", "")
+            converter_id = getattr(converter, "__name__", "")
 
         header = header_class(source_object, converter_id)
 
