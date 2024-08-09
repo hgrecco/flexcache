@@ -47,7 +47,7 @@ test = [
 Homepage = "https://github.com/hgrecco/flexcache"
 
 [tool.setuptools]
-packages = ["flexcache"]
+packages = ["flexcache", "flexcache.testsuite"]
 
 [build-system]
 requires = ["setuptools>=61", "wheel", "setuptools_scm[toml]>=3.4.3"]
