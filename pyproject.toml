@@ -99,6 +99,7 @@ publish = "uv publish"
 
 [tool.pixi.feature.test.dependencies]
 pytest = "*"
+pytest-cov = "*"
 
 [tool.pixi.feature.test.tasks]
 test = "pytest --doctest-modules"
