@@ -14,10 +14,6 @@
     :target: https://github.com/hgrecco/flexcache/actions?query=workflow%3ACI
     :alt: CI
 
-.. image:: https://github.com/hgrecco/flexcache/workflows/Lint/badge.svg
-    :target: https://github.com/hgrecco/flexcache/actions?query=workflow%3ALint
-    :alt: LINTER
-
 .. image:: https://coveralls.io/repos/github/hgrecco/flexcache/badge.svg?branch=main
     :target: https://coveralls.io/github/hgrecco/flexcache?branch=main
     :alt: Coverage

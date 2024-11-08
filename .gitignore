@@ -1,16 +1,24 @@
-*~
+# ignore all hidden files
+.*
+# except
+!.gitignore
+!.gitattributes
+!.github/
+!.pre-commit-config.yaml
+!.copier-answers.yml
+
+# Python
 __pycache__
+*.py[cod]
+*$py.class
+
+*~
 *egg-info*
-*.pyc
 .DS_Store
 docs/_build/
-.idea
-.vscode
 build/
 dist/
 MANIFEST
-*pytest_cache*
-.eggs
 
 # WebDAV file system cache files
 .DAV/
