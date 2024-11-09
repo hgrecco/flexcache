@@ -1,30 +1,30 @@
 """
-    flexcache.flexcache
-    ~~~~~~~~~~~~~~~~~~~
+flexcache.flexcache
+~~~~~~~~~~~~~~~~~~~
 
-    Classes for persistent caching and invalidating cached objects,
-    which are built from a source object and a (potentially expensive)
-    conversion function.
+Classes for persistent caching and invalidating cached objects,
+which are built from a source object and a (potentially expensive)
+conversion function.
 
-    Header
-    ------
-    Contains summary information about the source object that will
-    be saved together with the cached file.
+Header
+------
+Contains summary information about the source object that will
+be saved together with the cached file.
 
-    It's capabilities are divided in three groups:
-    - The Header itself which contains the information that will
-      be saved alongside the cached file
-    - The Naming logic which indicates how the cached filename is
-      built.
-    - The Invalidation logic which indicates whether a cached file
-      is valid (i.e. truthful to the actual source file).
+It's capabilities are divided in three groups:
+- The Header itself which contains the information that will
+  be saved alongside the cached file
+- The Naming logic which indicates how the cached filename is
+  built.
+- The Invalidation logic which indicates whether a cached file
+  is valid (i.e. truthful to the actual source file).
 
-    DiskCache
-    ---------
-    Saves and loads to the cache a transformed versions of a source object.
+DiskCache
+---------
+Saves and loads to the cache a transformed versions of a source object.
 
-    :copyright: 2022 by flexcache Authors, see AUTHORS for more details.
-    :license: BSD, see LICENSE for more details.
+:copyright: 2022 by flexcache Authors, see AUTHORS for more details.
+:license: BSD, see LICENSE for more details.
 """
 
 from __future__ import annotations
@@ -39,7 +39,16 @@ import sys
 from dataclasses import asdict as dc_asdict
 from dataclasses import dataclass
 from dataclasses import fields as dc_fields
-from typing import Any, Callable, ClassVar, Generator, Iterable, Optional, Union
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Generator,
+    Iterable,
+    Optional,
+    Protocol,
+    Union,
+)
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias  # noqa
@@ -51,6 +60,11 @@ if sys.version_info >= (3, 11):
     from typing import Self  # noqa
 else:
     from typing_extensions import Self  # noqa
+
+if sys.version_info >= (3, 12):
+    from collections.abc import Buffer  # noqa
+else:
+    from typing_extensions import Buffer  # noqa
 
 
 Pickable: TypeAlias = Any
@@ -64,6 +78,22 @@ Converter1: TypeAlias = Callable[
 Converter2: TypeAlias = Callable[[Any, str], Any]
 
 Converter: TypeAlias = Union[Converter1, Converter2]
+
+
+class HasherAlgorithm(Protocol):
+    def __call__(
+        self, string: Buffer = b"", *, usedforsecurity: bool = True
+    ) -> HasherProtocol: ...
+
+
+class HasherProtocol(Protocol):
+    @property
+    def name(self) -> str: ...
+
+    def hexdigest(self) -> str: ...
+
+    def update(self, b: bytes, /): ...
+
 
 #########
 # Header
@@ -154,8 +184,7 @@ class InvalidateByPathMTime(BaseHeader):
 
     @property
     @abc.abstractmethod
-    def source_path(self) -> pathlib.Path:
-        ...
+    def source_path(self) -> pathlib.Path: ...
 
     def is_valid(self, cache_path: pathlib.Path) -> bool:
         return (
@@ -170,8 +199,7 @@ class InvalidateByMultiPathsMtime(BaseHeader):
 
     @property
     @abc.abstractmethod
-    def source_paths(self) -> tuple[pathlib.Path, ...]:
-        ...
+    def source_paths(self) -> tuple[pathlib.Path, ...]: ...
 
     @property
     def newest_date(self) -> float:
@@ -298,8 +326,7 @@ class DiskCache:
     _header_classes: dict[type, HeaderBuilder]
 
     # Hasher object constructor (e.g. a member of hashlib)
-    # must implement update(b: bytes) and hexdigest() methods
-    _hasher = hashlib.sha1
+    _hasher: HasherAlgorithm = hashlib.sha1
 
     # If True, for each cached file the header is also stored.
     _store_header: bool = True
@@ -362,6 +389,10 @@ class DiskCache:
         use the converter argument to provide a name for it. This is
         important as the cached_path_stem depends on the converter name.
         """
+
+        # TODO: this function signature is a mess.
+        # It would be good to separate the converter: str part
+
         header_class = self._get_header_class(source_object)
 
         converter_id: str
